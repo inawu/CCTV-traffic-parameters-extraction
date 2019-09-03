@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Aug 23 23:46:03 2019
+
+@author: yina
+"""
+import datetime
+import pandas as pd
+from datetime import datetime, timedelta
+######read data
+os.chdir('/home/yina/Desktop/CCTV/preliminary')
+#detection_data=pd.read_csv('output_lane.csv')
+detection_data=pd.read_csv('CCTV-v1.csv')
+detection_data = detection_data.loc[detection_data['type'] != 'clock']
+detection_data = detection_data.loc[detection_data['type'] != 'person']
+detection_data = detection_data.loc[detection_data['type'] != 'train']
+#total frame/time duration-get frame rate;
+n=251359/8741
+#add start time and time interval
+detection_data['starttime']= pd.datetime(2019, 8, 21, 17, 33, 24)
+detection_data['timedifsec']=detection_data['frameNum']/n
+detection_data['timedifsec']=pd.to_numeric(detection_data['timedifsec'])
+import datetime
+detection_data['timedif']=[datetime.timedelta(seconds=i) for i in detection_data['timedifsec']]
+detection_data['time']=detection_data['starttime']+detection_data['timedif']
+#detection_data['timeinterval']=detection_data['time'].round('60min').to_pydatetime()
+detection_data['timeinterval']=pd.to_numeric((detection_data['time'].dt.minute)%15)
+detection_data['timeinterval']=[pd.Timedelta(minutes=minute_15)for minute_15 in detection_data.timeinterval]
+detection_data['timeinterval_15min']=detection_data['time']-detection_data['timeinterval']
+detection_data['timeinterval_sec']=pd.to_numeric(detection_data['time'].dt.second)
+detection_data['timeinterval_sec']=[pd.Timedelta(seconds=minute_15)for minute_15 in detection_data.timeinterval_sec]
+detection_data['timeinterval_15min']=detection_data['timeinterval_15min']-detection_data['timeinterval_sec']
+detection_data['timeinterval_microsec']=pd.to_numeric(detection_data['time'].dt.microsecond)
+detection_data['timeinterval_microsec']=[pd.Timedelta(microseconds=minute_15)for minute_15 in detection_data.timeinterval_microsec]
+detection_data['timeinterval_15min']=detection_data['timeinterval_15min']-detection_data['timeinterval_microsec']
+detection_data.drop(['timeinterval','timeinterval_sec','timedif','starttime','timedifsec','timeinterval_microsec'], axis = 1, inplace = True)
+a=max(detection_data['timeinterval_15min'])
+print(a)
+
+#################aggregate into 15min
+###get count
+#note: some vehicles include in count but not in speed
+detection_data=detection_data[(detection_data['cy']>260) & (detection_data['inside'] != -1) & (detection_data['inside'] != -10)]
+zone_1=detection_data.loc[detection_data['side'].isin(['right'])]
+#select only one zone
+zone_1=zone_1[zone_1['inside']==1]
+#zone_1=zone_1[(zone_1['cy']>408) & (zone_1['cy']<489)]
+np.unique(zone_1['line'])
+CCTV_arrive=zone_1.groupby(['timeinterval_15min','carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.min})
+CCTV_leave=zone_1.groupby(['timeinterval_15min','carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.max})
+CCTV_arrive.rename(columns={'frameNum': 'frameNum_arrive','carId':'CarID','timeinterval_15min':'timeinterval'}, inplace=True)
+CCTV_leave.rename(columns={'frameNum': 'frameNum_leave','carId':'CarID','timeinterval_15min':'timeinterval'}, inplace=True)
+CCTV_arrive_leave=pd.merge(CCTV_arrive, CCTV_leave,left_on=['CarID','timeinterval'],right_on=['CarID','timeinterval'])
+#CCTV_arrive_leave['occupy_time']=(CCTV_arrive_leave['frameNum_leave']-CCTV_arrive_leave['frameNum_arrive'])/n
+#CCTV_arrive_leave['speed']=29/CCTV_arrive_leave['occupy_time']*0.68
+#CCTV_agg=CCTV_arrive_leave.groupby(['timeinterval']).agg(['mean', 'count'])
+CCTV_agg=CCTV_arrive_leave.groupby(['timeinterval']).size().reset_index(name='counts')
+CCTV_agg.plot(x='timeinterval', y='counts')
+CCTV_agg['counts'].sum()
+CCTV_agg = CCTV_agg.iloc[1:]
+CCTV_agg = CCTV_agg.iloc[:-1]
+
+
+###get speed
+#inside=0-virtual detection is occupied;
+detection_data=pd.read_csv('CCTV-v1.csv')
+detection_data = detection_data.loc[detection_data['type'] != 'clock']
+detection_data = detection_data.loc[detection_data['type'] != 'person']
+detection_data = detection_data.loc[detection_data['type'] != 'train']
+#total frame/time duration-get frame rate;
+n=251359/8741
+#add start time and time interval
+detection_data['starttime']= pd.datetime(2019, 8, 21, 17, 33, 24)
+detection_data['timedifsec']=detection_data['frameNum']/n
+detection_data['timedifsec']=pd.to_numeric(detection_data['timedifsec'])
+import datetime
+detection_data['timedif']=[datetime.timedelta(seconds=i) for i in detection_data['timedifsec']]
+detection_data['time']=detection_data['starttime']+detection_data['timedif']
+#detection_data['timeinterval']=detection_data['time'].round('60min').to_pydatetime()
+detection_data['timeinterval']=pd.to_numeric((detection_data['time'].dt.minute)%15)
+detection_data['timeinterval']=[pd.Timedelta(minutes=minute_15)for minute_15 in detection_data.timeinterval]
+detection_data['timeinterval_15min']=detection_data['time']-detection_data['timeinterval']
+detection_data['timeinterval_sec']=pd.to_numeric(detection_data['time'].dt.second)
+detection_data['timeinterval_sec']=[pd.Timedelta(seconds=minute_15)for minute_15 in detection_data.timeinterval_sec]
+detection_data['timeinterval_15min']=detection_data['timeinterval_15min']-detection_data['timeinterval_sec']
+detection_data['timeinterval_microsec']=pd.to_numeric(detection_data['time'].dt.microsecond)
+detection_data['timeinterval_microsec']=[pd.Timedelta(microseconds=minute_15)for minute_15 in detection_data.timeinterval_microsec]
+detection_data['timeinterval_15min']=detection_data['timeinterval_15min']-detection_data['timeinterval_microsec']
+detection_data.drop(['timeinterval','timeinterval_sec','timedif','starttime','timedifsec','timeinterval_microsec'], axis = 1, inplace = True)
+a=max(detection_data['timeinterval_15min'])
+print(a)
+zone_1=detection_data.loc[detection_data['side'].isin(['right'])]
+zone_1=zone_1.sort_values(['carId','frameNum'], ascending=[True,True])
+zone_1['previou_inside'] =zone_1.inside.shift(1)
+zone_1['next_inside'] =zone_1.inside.shift(-1)
+zone_1['previou_carId'] =zone_1.carId.shift(1)
+zone_1['next_carId'] =zone_1.carId.shift(-1)
+zone_1['previous_carIddif']=zone_1['previou_carId']-zone_1['carId']
+zone_1['next_carIddif']=zone_1['next_carId']-zone_1['carId']
+#select zone
+zone_arrive=zone_1[(zone_1['previou_inside']==0) & (zone_1['inside']==1) & (zone_1['previous_carIddif']==0)]
+zone_leave=zone_1[(zone_1['inside']==1) & (zone_1['next_inside']==2) & (zone_1['next_carIddif']==0)]
+#zone_1=detection_data.loc[detection_data['inside'].isin([0])]
+#zone_arrive=zone_1.groupby(['carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.min})
+#zone_leave=zone_1.groupby(['carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.max})
+zone_arrive.rename(columns={'frameNum':'frameNum_arrive','carId':'CarID','timeinterval_15min':'timeinterval'}, inplace=True)
+zone_leave.rename(columns={'frameNum':'frameNum_leave','carId':'CarID','timeinterval_15min':'timeinterval'}, inplace=True)
+CCTV_arrive_leave=pd.merge(zone_arrive, zone_leave,left_on=['CarID'],right_on=['CarID'])
+#list(CCTV_arrive_leave.columns.values)
+CCTV_arrive_leave=CCTV_arrive_leave[['frameNum_arrive','CarID','timeinterval_x','frameNum_leave']]
+#zone_1=zone_1[(zone_1['p2.y']>=409) & (zone_1['p2.y']<=489)]
+#zone_1=zone_1[((zone_1['p1.x']+(zone_1['p2.x']-zone_1['cx'])/2)>=409) & (zone_1['p2.y']<=489)]
+#CCTV_arrive=zone_1.groupby(['timeinterval_15min','carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.min,'p2.y':np.min})
+#CCTV_leave=zone_1.groupby(['timeinterval_15min','carId']).agg({'carId':np.min,'timeinterval_15min':np.min,'frameNum':np.max,'p2.y':np.max})
+#CCTV_arrive.rename(columns={'frameNum': 'frameNum_arrive','carId':'CarID','timeinterval_15min':'timeinterval','p2.y':'cy_arrive'}'carId':np.min,)
+#CCTV_leave.rename(columns={'frameNum': 'frameNum_leave','carId':'CarID','timeinterval_15min':'timeinterval','p2.y':'cy_leave'}, inplace=True)
+#CCTV_arrive_leave=pd.merge(CCTV_arrive, CCTV_leave,left_on=['CarID','timeinterval'],right_on=['CarID','timeinterval'])
+#CCTV_arrive_leave=CCTV_arrive_leave[(CCTV_arrive_leave['cy_arrive']>=409) & (CCTV_arrive_leave['cy_leave']>=489)]
+CCTV_arrive_leave['occupy_time']=(CCTV_arrive_leave['frameNum_leave']-CCTV_arrive_leave['frameNum_arrive'])/n
+#CCTV_arrive_leave=CCTV_arrive_leave[CCTV_arrive_leave['occupy_time']>0.24]
+CCTV_arrive_leave['speed']=30/CCTV_arrive_leave['occupy_time']*0.6818182
+CCTV_arrive_leave=CCTV_arrive_leave[['timeinterval_x','speed']]
+CCTV_agg=CCTV_arrive_leave.groupby(['timeinterval_x']).agg(['mean','count'])
+
+
+############################zone comparison paired t-test
+zone_compare=pd.read_csv('compare.csv')
+from scipy import stats
+stats.ttest_rel(zone_compare['MVDS'], zone_compare['Camera_D_v2'])
+stats.ttest_rel(zone_compare['MVDS'], CCTV_agg['counts'])
